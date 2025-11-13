@@ -32,6 +32,7 @@ public class Character {
 	protected boolean reflector = false;
 	protected boolean isInvisible = false;
 	protected int burnAttackPenalty = 0;
+	protected boolean burnPenaltyApplied = false; // FIX: Track if penalty already applied
 
 	// ====== Regen & Healing ======
 	protected int regenAmount = 0;
@@ -69,8 +70,6 @@ public class Character {
 		extraTurn = t;
 	}
 
-	// BUG FIX #1: Hope Mode wasn't preventing death properly
-	// Old code exited early without applying defense reduction
 	public void takeDamage(double damage, Character attacker) {
 		// Miss chance (unless never miss is active)
 		if (attacker != null) {
@@ -94,7 +93,7 @@ public class Character {
 		// Apply defense reduction
 		int reduced = (int)Math.max(1, damage - totalDefense);
 		
-		// NOW check Hope Mode AFTER calculating final damage
+		// Check Hope Mode AFTER calculating final damage
 		if (hopeMode && health - reduced < 1) {
 			health = 1;
 			System.out.println(name + " refuses to fall! (Hope Mode)");
@@ -113,8 +112,6 @@ public class Character {
 		}
 	}
 
-	// BUG FIX #2: Crit chance wasn't resetting properly
-	// Old code reset critChance to 0.1 every turn when critBoostTurns was 0
 	public int getRanDmg(int base, Character attacker) {
 		int damage = base + attack + ran.nextInt(5) + attacker.attBuff - attacker.attDeBuff;
 
@@ -138,62 +135,77 @@ public class Character {
 	public void applyBuff(String type, int amount, int turns) {
 		if (type.equals("attack")) {
 			this.attBuff += amount;
-			this.attBuffTurns = turns;
-			System.out.println(name + " gains an attack buff for " + turns + " turns");
+			this.attBuffTurns = Math.max(this.attBuffTurns, turns); // FIX: Use max to prevent overwrite
+			System.out.println(name + " gains +" + amount + " attack buff for " + turns + " turns");
 		} else if (type.equals("defense")) {
 			this.defBuff += amount;
-			this.defBuffTurns = turns;
-			System.out.println(name + " gains a defense buff for " + turns + " turns");
+			this.defBuffTurns = Math.max(this.defBuffTurns, turns); // FIX: Use max
+			System.out.println(name + " gains +" + amount + " defense buff for " + turns + " turns");
 		} else if (type.equals("both")) {
 			this.attBuff += amount;
 			this.defBuff += amount;
-			this.attBuffTurns = turns;
-			this.defBuffTurns = turns;
-			System.out.println(name + " gains a defense and attack buff for " + turns + " turns");
+			this.attBuffTurns = Math.max(this.attBuffTurns, turns); // FIX: Use max
+			this.defBuffTurns = Math.max(this.defBuffTurns, turns); // FIX: Use max
+			System.out.println(name + " gains +" + amount + " attack and defense buff for " + turns + " turns");
 		}
 	}
 
 	public void applyDeBuff(String type, int amount, int turns) {
 		if (type.equals("attack")) {
 			this.attDeBuff += amount;
-			this.deAttBuffTurns = turns;
-			System.out.println(name + " loses attack for " + turns + " turns");
+			this.deAttBuffTurns = Math.max(this.deAttBuffTurns, turns); // FIX: Use max
+			System.out.println(name + " loses -" + amount + " attack for " + turns + " turns");
 		} else if (type.equals("defense")) {
 			this.defDeBuff += amount;
-			this.deDefBuffTurns = turns;
-			System.out.println(name + " loses defense for " + turns + " turns");
+			this.deDefBuffTurns = Math.max(this.deDefBuffTurns, turns); // FIX: Use max
+			System.out.println(name + " loses -" + amount + " defense for " + turns + " turns");
 		} else if (type.equals("both")) {
 			this.attDeBuff += amount;
 			this.defDeBuff += amount;
-			this.deAttBuffTurns = turns;
-			this.deDefBuffTurns = turns;
-			System.out.println(name + " loses attack and defense for " + turns + " turns");
+			this.deAttBuffTurns = Math.max(this.deAttBuffTurns, turns); // FIX: Use max
+			this.deDefBuffTurns = Math.max(this.deDefBuffTurns, turns); // FIX: Use max
+			System.out.println(name + " loses -" + amount + " attack and defense for " + turns + " turns");
 		}
 	}
 
-	// BUG FIX #3: Crit boost now properly resets tempCritBoost
 	public void updateBuffs() {
-		if (attBuffTurns > 0 && --attBuffTurns == 0) {
-			attBuff = 0;
-			System.out.println(name + "'s attack buff wore off!");
+		// Attack buff countdown
+		if (attBuffTurns > 0) {
+			attBuffTurns--;
+			if (attBuffTurns == 0) {
+				System.out.println(name + "'s attack buff wore off! (was +" + attBuff + ")");
+				attBuff = 0;
+			}
 		}
 
-		if (defBuffTurns > 0 && --defBuffTurns == 0) {
-			defBuff = 0;
-			System.out.println(name + "'s defense buff wore off!");
+		// Defense buff countdown
+		if (defBuffTurns > 0) {
+			defBuffTurns--;
+			if (defBuffTurns == 0) {
+				System.out.println(name + "'s defense buff wore off! (was +" + defBuff + ")");
+				defBuff = 0;
+			}
 		}
 
-		if (deAttBuffTurns > 0 && --deAttBuffTurns == 0) {
-			attDeBuff = 0;
-			System.out.println(name + "'s attack debuff wore off!");
+		// Attack debuff countdown
+		if (deAttBuffTurns > 0) {
+			deAttBuffTurns--;
+			if (deAttBuffTurns == 0) {
+				System.out.println(name + "'s attack debuff wore off! (was -" + attDeBuff + ")");
+				attDeBuff = 0;
+			}
 		}
 
-		if (deDefBuffTurns > 0 && --deDefBuffTurns == 0) {
-			defDeBuff = 0;
-			System.out.println(name + "'s defense debuff wore off!");
+		// Defense debuff countdown
+		if (deDefBuffTurns > 0) {
+			deDefBuffTurns--;
+			if (deDefBuffTurns == 0) {
+				System.out.println(name + "'s defense debuff wore off! (was -" + defDeBuff + ")");
+				defDeBuff = 0;
+			}
 		}
 
-		// FIXED: Now properly resets tempCritBoost when timer expires
+		// Crit boost countdown
 		if (critBoostTurns > 0) {
 			critBoostTurns--;
 			if (critBoostTurns == 0) {
@@ -202,6 +214,7 @@ public class Character {
 			}
 		}
 
+		// Never miss countdown
 		if (neverMissTurns > 0) {
 			neverMissTurns--;
 			if (neverMissTurns == 0) {
@@ -210,6 +223,7 @@ public class Character {
 			}
 		}
 
+		// Hope mode countdown
 		if (hopeModeTurns > 0) {
 			hopeModeTurns--;
 			if (hopeModeTurns == 0) {
@@ -219,18 +233,19 @@ public class Character {
 		}
 	}
 
-	// Status System
+	// ====== Status System ======
 	public void setStatus(String status, int duration) {
 		status = status.toLowerCase();
 
 		int index = statusEffects.indexOf(status);
 		if(index != -1) {
-			statusDurations.set(index, duration);
+			// Status already exists, extend duration
+			statusDurations.set(index, Math.max(statusDurations.get(index), duration)); // FIX: Use max
 		} else {
 			statusEffects.add(status);
 			statusDurations.add(duration);
 		}
-		System.out.println(name + " is now " + status);
+		System.out.println(name + " is now " + status + " for " + duration + " turns");
 	}
 
 	public void applyStatus() {
@@ -246,8 +261,12 @@ public class Character {
 				stunned = true;
 			} else if (effect.equals("burned")) {
 				takeDamage(5, null);
-				attack -= 2;
-				burnAttackPenalty += 2;
+				// FIX: Only apply attack penalty ONCE per burn status
+				if (!burnPenaltyApplied) {
+					attack -= 2;
+					burnAttackPenalty = 2;
+					burnPenaltyApplied = true;
+				}
 			} else if (effect.equals("poisoned")) {
 				takeDamage(12, null);
 			} else if (effect.equals("invisible")) {
@@ -255,12 +274,14 @@ public class Character {
 			} else if (effect.equals("reflect")) {
 				reflector = true;
 			}
+			
+			// Decrement duration
 			statusDurations.set(i, duration - 1);
 		}
 	}
 
 	public void cleanupStatuses() {
-		for (int i = 0; i < statusEffects.size(); i++) {
+		for (int i = statusEffects.size() - 1; i >= 0; i--) { // FIX: Iterate backwards to avoid index issues
 			String effect = statusEffects.get(i);
 			int duration = statusDurations.get(i);
 
@@ -268,7 +289,6 @@ public class Character {
 				clearStatus(effect);
 				statusEffects.remove(i);
 				statusDurations.remove(i);
-				i--;
 			}
 		}
 	}
@@ -276,24 +296,36 @@ public class Character {
 	public void clearStatus(String effect) {
 		if (effect.equals("frozen")) {
 			frozen = false;
+			System.out.println(name + "'s frozen status has worn off");
 		} else if (effect.equals("stunned")) {
 			stunned = false;
+			System.out.println(name + "'s stunned status has worn off");
 		} else if (effect.equals("burned")) {
 			attack += burnAttackPenalty;
 			burnAttackPenalty = 0;
+			burnPenaltyApplied = false; // FIX: Reset flag
+			System.out.println(name + "'s burned status has worn off");
 		} else if (effect.equals("invisible")) {
 			isInvisible = false;
+			System.out.println(name + "'s invisible status has worn off");
 		} else if (effect.equals("reflect")) {
 			reflector = false;
+			System.out.println(name + "'s reflect status has worn off");
+		} else if (effect.equals("poisoned")) {
+			System.out.println(name + "'s poisoned status has worn off");
 		} else if (effect.equals("all")) {
+			// FIX: Properly clear ALL statuses
 			frozen = false;
 			stunned = false;
 			attack += burnAttackPenalty;
 			burnAttackPenalty = 0;
+			burnPenaltyApplied = false;
 			isInvisible = false;
 			reflector = false;
+			statusEffects.clear();
+			statusDurations.clear();
+			System.out.println(name + "'s all status effects have been cleared");
 		}
-		System.out.println(name + "'s status effect has worn off");
 	}
 
 	public boolean hasReflector() {
@@ -316,6 +348,7 @@ public class Character {
 	public void setRegen(int amount, int duration) {
 		this.regenAmount = amount;
 		this.regenDuration = duration;
+		System.out.println(name + " will regenerate " + amount + " HP for " + duration + " turns");
 	}
 
 	public void applyRegen() {
@@ -324,6 +357,7 @@ public class Character {
 			regenDuration--;
 			if (regenDuration == 0) {
 				regenAmount = 0;
+				System.out.println(name + "'s regeneration has ended");
 			}
 		}
 	}
@@ -332,11 +366,25 @@ public class Character {
 	public void setCritChance(double amt, int duration) {
 		this.tempCritBoost = amt;
 		this.critBoostTurns = duration;
+		System.out.println(name + " gains +" + (int)(amt * 100) + "% crit chance for " + duration + " turns");
 	}
 
 	// ====== Display ======
 	public void displayStats() {
 		System.out.print(name + " (Level " + level + ") HP: " + health + "/" + maxHealth);
+		
+		// Display active buffs/debuffs
+		List<String> activeEffects = new ArrayList<>();
+		if (attBuff > 0) activeEffects.add("ATK+" + attBuff + "(" + attBuffTurns + ")");
+		if (defBuff > 0) activeEffects.add("DEF+" + defBuff + "(" + defBuffTurns + ")");
+		if (attDeBuff > 0) activeEffects.add("ATK-" + attDeBuff + "(" + deAttBuffTurns + ")");
+		if (defDeBuff > 0) activeEffects.add("DEF-" + defDeBuff + "(" + deDefBuffTurns + ")");
+		
+		if (!activeEffects.isEmpty()) {
+			System.out.print(" | Buffs: " + String.join(", ", activeEffects));
+		}
+		
+		// Display statuses
 		if (!statusEffects.isEmpty()) {
 			System.out.print(" | Status: ");
 			for (int i = 0; i < statusEffects.size(); i++) {
@@ -346,7 +394,7 @@ public class Character {
 				}
 			}
 		}
-		System.out.println("");
+		System.out.println();
 	}
 
 	// ====== Emotion-Related ======
@@ -354,7 +402,7 @@ public class Character {
 		this.neverMiss = value;
 		this.neverMissTurns = turns;
 		if (value) {
-			System.out.println(name + " will never miss!");
+			System.out.println(name + " will never miss for " + turns + " turns!");
 		}
 	}
 
@@ -362,7 +410,7 @@ public class Character {
 		this.hopeMode = value;
 		this.hopeModeTurns = turns;
 		if (value) {
-			System.out.println(name + " enters Hope Mode - refuses to die!");
+			System.out.println(name + " enters Hope Mode for " + turns + " turns - refuses to die!");
 		}
 	}
 
@@ -374,6 +422,7 @@ public class Character {
 		return neverMiss;
 	}
 
+	// ====== Getters ======
 	public int getLevel() {
 		return level;
 	}
@@ -384,5 +433,9 @@ public class Character {
 
 	public int getAttack() {
 		return attack;
+	}
+	
+	public int getDefense() {
+		return defense;
 	}
 }
