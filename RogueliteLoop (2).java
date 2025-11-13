@@ -12,13 +12,15 @@ public class RogueliteLoop {
     private List<Biome> biomes;
     private int currentBiomeIndex = 0;
     private Biome currentBiome;
-    private Weather currentWeather;
-    private BattleEvent currentBattleEvent;
     
     // Post-battle buff tracking
     private int battleTranceStacks = 0;
     private EmotionCard primedEmotion = null;
     private boolean riskyBargainActive = false;
+    
+    // NEW: Weather and Event spawn chances
+    private static final double WEATHER_CHANCE = 0.60; // 60% chance for weather
+    private static final double BATTLE_EVENT_CHANCE = 0.50; // 50% chance for battle event
     
     public RogueliteLoop(Player player) {
         this.player = player;
@@ -109,22 +111,31 @@ public class RogueliteLoop {
                 System.out.println("\nYou have no emotions yet. You must fight without them...");
             }
             
-            // Set weather and battle event
-            String weatherType = currentBiome.getRandomWeather(random);
-            currentWeather = new Weather(weatherType, "");
-            currentWeather.setActive(true);
+            // CHANGED: Random weather (60% chance)
+            Weather currentWeather = null;
+            if (random.nextDouble() < WEATHER_CHANCE) {
+                String weatherType = currentBiome.getRandomWeather(random);
+                currentWeather = new Weather(weatherType, "");
+                currentWeather.setActive(true);
+                System.out.println("\n--- Weather: " + weatherType + " (" + currentWeather.getEffectDescription() + ") ---");
+            } else {
+                System.out.println("\n--- Weather: Clear (No weather effects) ---");
+            }
             
-            String eventType = currentBiome.getRandomBattleEvent(random);
-            currentBattleEvent = new BattleEvent(eventType, getEventDescription(eventType));
-            currentBattleEvent.setActive(true);
-            
-            System.out.println("\n--- Battle Conditions ---");
-            System.out.println("Weather: " + weatherType + " (" + currentWeather.getEffectDescription() + ")");
+            // CHANGED: Random battle event (50% chance)
+            BattleEvent currentBattleEvent = null;
+            if (random.nextDouble() < BATTLE_EVENT_CHANCE) {
+                String eventType = currentBiome.getRandomBattleEvent(random);
+                currentBattleEvent = new BattleEvent(eventType, getEventDescription(eventType));
+                currentBattleEvent.setActive(true);
+            } else {
+                System.out.println("--- Battle Event: None (Standard battlefield) ---");
+            }
             
             // Generate enemy from current biome
             Enemy enemy = generateEnemy();
             
-            // Start battle with weather and event
+            // Start battle with weather and event (may be null)
             EmotionBattle battle = new EmotionBattle(player, enemy, emotionManager, 
                                                      currentWeather, currentBattleEvent);
             boolean won = battle.start();
@@ -198,7 +209,7 @@ public class RogueliteLoop {
         // Scale enemy stats based on player level (percentage-based)
         int scaledHP = (int)(template.maxHealth * (1 + player.getLevel() * 0.12));
         int scaledAtk = template.getAttack() + player.getLevel();
-        int scaledDef = template.defense + (player.getLevel() / 2);
+        int scaledDef = template.getDefense() + (player.getLevel() / 2);
         
         return new Enemy(
             template.getName(),
